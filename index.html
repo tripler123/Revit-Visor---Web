@@ -1,0 +1,410 @@
+<html>
+
+<head>
+	<meta charset=utf-8>
+	<!-- Titulo del Proyecto -->
+	<title>Revit Viewer</title>
+
+	<!-- Agregar Jquery -->
+	<script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
+	<!-- Estilos de Letras -->
+	<link href='https://fonts.googleapis.com/css?family=Merriweather:300' rel='stylesheet' type='text/css'>
+	<link href='https://fonts.googleapis.com/css?family=Open+Sans:300' rel='stylesheet' type='text/css'>
+	<!-- Estilos Propios de la hoja Index -->
+	<style>
+		body {
+			margin: 0;
+			overflow: hidden;
+			font-family: 'Open Sans', sans-serif;
+			font-weight: 300;
+			line-height: 1.5;
+			letter-spacing: -0.004em;
+		}
+
+		canvas {
+			width: 90%;
+			height: 90%
+		}
+
+		#introContainer {}
+
+		#loadtext {
+			font-family: 'Merriweather', serif;
+			font-weight: 300;
+			font-size: 18px;
+			line-height: 1.5;
+			letter-spacing: -0.004em;
+			color: rgba(0, 0, 0, 0.8);
+			text-align: center;
+			position: fixed;
+			width: 100%;
+			top: 68%;
+			z-index: 1000;
+		}
+
+		#mainContainer {}
+
+		.menuR {
+			position: fixed;
+			bottom: 20px;
+			right: 20px;
+			width: 140px;
+		}
+
+		.menuL {
+			position: fixed;
+			bottom: 20px;
+			left: 20px;
+			width: 140px;
+		}
+
+		.button {
+			display: inline-block;
+			padding: 8px;
+			color: #FFF;
+			background-color: #555;
+			width: 123px;
+			margin-top: 8px;
+		}
+
+		.button.active {
+			background-color: rgb(18, 36, 70);
+		}
+
+		.button:hover {
+			cursor: pointer;
+			background-color: rgb(18, 36, 70);
+		}
+
+		.button.error {
+			pointer-events: none;
+			background-color: red;
+		}
+	</style>
+
+
+</head>
+
+<body>
+	<!-- Cargando -->
+	<div id="introContainer">
+		<div id="loadtext">Loading...</div>
+	</div>
+
+	<div id="mainContainer" hidden>
+		<!-- Menu de Izquierda -->
+		<div class="menuL">
+			<div class="button description-event active">
+				Toggle InfoClicks
+			</div>
+		</div>
+		<!-- Menu de la Derecha -->
+		<div class="menuR">
+			<div class="button mouse-ctrl">
+				Mouse Controls
+			</div>
+			<div class="button leap-ctrl">
+				Leap Grab
+			</div>
+			<div class="button leapP-ctrl">
+				Leap Point
+			</div>
+			<div class="button vr">
+				VR Display
+			</div>
+		</div>
+		<!-- Mensaje -->
+		<div style='background-color: rgb(151, 59, 90); left: 20px; opacity: 0.85; position: absolute; top: 20px;'>
+			<div id=msg style=font-size:10pt;padding:8px;>
+
+			</div>
+		</div>
+		<!-- Contenedor -->
+		<div id="container"></div>
+	</div>
+	<!-- Zona de los javaScript -->
+
+	<script src="js/leap.min.js"></script>
+	<!-- cdn - Three.js -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r73/three.js"></script>
+
+	<script src="js/controls/LeapTwoHandControls.js"></script>
+	<script src="js/controls/LeapPointerControls.js"></script>
+	<script src="js/controls/OrbitControls.js"></script>
+	<script src="js/SubdivisionModifier.js"></script>
+	<script src="js/stats.min.js"></script>
+	<script src="js/Projector.js"></script>
+	<script src="js/Detector.js"></script>
+	<script src='js/showAtt.js'></script>
+	<script src='js/THREEx.WindowResize.js'></script>
+
+	<script>
+		/* LOADING ANIMATION */
+		var idR;
+		// Agregamos una Scene
+		var i_scene = new THREE.Scene();
+		// Tamaño de la camara
+		var i_aspect = window.innerWidth / window.innerHeight;
+		// Agregamos una camara
+		var i_camera = new THREE.PerspectiveCamera(75, i_aspect, 0.1, 1000);
+		// Agregamos un renderer tipo WebGL
+		var i_renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+		// Definimos el tamaño de la zona de renderizado
+		i_renderer.setSize(window.innerWidth, window.innerHeight);
+		// Renderizamos en la zona de introContainer
+		document.getElementById("introContainer").appendChild(i_renderer.domElement);
+		//------CUBO-----
+		// Geomtria del Cubo
+		var i_geometry = new THREE.BoxGeometry(1, 1, 1);
+		// Material del Cubo
+		var i_material = new THREE.MeshNormalMaterial();
+		// Creacion de Cubo (Geometria + Material)
+		var i_cube = new THREE.Mesh(i_geometry, i_material);
+		//Agregamos el cubo a la Scene
+		i_scene.add(i_cube);
+		//Posicion de la Camara
+		i_camera.position.z = 5;
+
+		// Animacion del Cubo - FUNCION
+		var i_render = function () {
+			idR = requestAnimationFrame(i_render);
+			// Rotacion x Eje
+			i_cube.rotation.x += 0.03;
+			i_cube.rotation.y += 0.03;
+			// Renderizacion (Scena + Camara)
+			i_renderer.render(i_scene, i_camera);
+		};
+		// Llamamos a la Funcion
+		i_render();
+	</script>
+
+	<script>
+		if (!Detector.webgl) {
+			Detector.addGetWebGLMessage()
+		};
+
+		var animLoop = false;
+		var idM;
+		var container, camera, scene, renderer;
+		var controller, controls;
+		var oLoad;
+		var ambient, directional;
+		var subdivs = 0;
+		var stats;
+		var projector;
+
+		// El método querySelector () devuelve el primer elemento que 
+		// coincide con un selector de CSS especificado en el documento.
+		var clkBtn = document.querySelector('.description-event');
+		var mouseBtn = document.querySelector('.mouse-ctrl');
+		var grabBtn = document.querySelector('.leap-ctrl');
+		var pntBtn = document.querySelector('.leapP-ctrl');
+		var vrBtn = document.querySelector('.vr');
+
+		//Onclick: Ejecute un JavaScript cuando se hace clic en un botón
+		mouseBtn.onclick = function () { mouse(); };
+		grabBtn.onclick = function () { twoHand(); };
+		pntBtn.onclick = function () { pointer(); };
+		vrBtn.onclick = function () { window.location = "threeVR.html"; }
+
+		clkBtn.onclick = function () {
+			// hasClass: determine si a alguno de los elementos coincidentes se le asigna la clase dada.
+			// --> El .hasClass()método volverá truesi la clase está asignada a un elemento, incluso si
+			// también hay otras clases
+			if ($('.description-event').hasClass('active')) {
+				// elimine una sola clase, varias clases o todas las clases de cada elemento en el 
+				// conjunto de elementos coincidentes.
+				$('.description-event').removeClass('active');
+				// Elimine el LogListener especificado de la lista de oyentes para recibir 
+				// una notificación cuando se imprima información.
+				removeInfoListener();
+			} else {
+				// agregue una sola clase, varias clases o todas las clases de cada elemento en el 
+				// conjunto de elementos coincidentes.
+				$('.description-event').addClass('active');
+				addInfoListener();
+			}
+		};
+
+		init();
+		//animate();
+
+		function init() {
+			/* Inicializa las Variables */
+			controller = new Leap.Controller();
+			// Crear una scena
+			scene = new THREE.Scene();
+			// Crear un Projector -- Eliminado desde r71
+			projector = new THREE.Projector();
+
+			/* CREAR EL RENDERER */
+			renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+			//Definir el tamaño del Render
+			renderer.setSize(window.innerWidth, window.innerHeight);
+			//Crear un container = Div
+			container = document.getElementById('container');
+			// Agregar el render al container
+			container.appendChild(renderer.domElement);
+
+			/* CREAR LA CAMARA */
+			camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 200000);
+			camera.position.set(15000, 15000, 15000);
+
+			// /* CREATE STATS OBJECT */
+			// stats = new Stats();
+			// stats.domElement.style.position = 'absolute';
+			// stats.domElement.style.top = '10px';
+			// stats.domElement.style.left = '10px';
+			// stats.domElement.style.zIndex = 100;
+			// container.appendChild( stats.domElement );
+
+			/* SET DEFAULT CONTROL TYPE */
+			mouse();
+
+			/* CARGA Y MALLA SUAVE */
+			oLoad = new THREE.ObjectLoader();
+			//Carga el modelo desde json
+			oLoad.load('js/models/sample.min.js', function (object) {
+				scene = object;
+				scene.children.forEach(function (obj3d) {
+					if (obj3d instanceof THREE.Object3D) {
+						obj3d.children.forEach(function (mesh) {
+							if (mesh instanceof THREE.Mesh) {
+								if (mesh.name.indexOf('TopographySurface') != -1) {
+									console.log('got a topo');
+									var finalGeo = mesh.geometry;
+									finalGeo.mergeVertices();
+									var modifier = new THREE.SubdivisionModifier(subdivs);
+									modifier.modify(finalGeo);
+								}
+							}
+						})
+					};
+				});
+
+				/* CREAR CUADRADO CONTENEDOR  */
+				var urlPrefix = 'img/sky/',
+					urls = [
+						urlPrefix + 'posx.jpg',
+						urlPrefix + 'negx.jpg',
+						urlPrefix + 'negz.jpg',
+						urlPrefix + 'posz.jpg',
+						urlPrefix + 'posy.jpg',
+						urlPrefix + 'negy.jpg'
+					],
+					textureCube = THREE.ImageUtils.loadTextureCube(urls),
+					shader = THREE.ShaderLib['cube'],
+					uniforms = THREE.UniformsUtils.clone(shader.uniforms);
+				uniforms['tCube'].value = textureCube;
+				var skyMaterial = new THREE.ShaderMaterial({
+					fragmentShader: shader.fragmentShader,
+					vertexShader: shader.vertexShader,
+					uniforms: uniforms,
+					depthWrite: false,
+					side: THREE.DoubleSide
+				}),
+					skyboxMesh = new THREE.Mesh(new THREE.BoxGeometry(100000, 100000, 100000, 1, 1, 1), skyMaterial);
+				scene.add(skyboxMesh);
+
+				/* CREAR LUCES */
+				ambient = new THREE.AmbientLight(0x404040);
+				scene.add(ambient);
+				directional = new THREE.DirectionalLight(0xffffff, 1);
+				directional.position.set(0, 1, 0);
+				directional.castShadow = true;
+				directional.shadowMapWidth = 2048;
+				directional.shadowMapHeight = 2048;
+				var d = 10000;
+				directional.shadowCameraLeft = -d;
+				directional.shadowCameraRight = d;
+				directional.shadowCameraTop = d * 2;
+				directional.shadowCameraBottom = -d * 2;
+				directional.shadowCameraNear = 1000;
+				directional.shadowCameraFar = 20000;
+				scene.add(directional);
+
+				/* FUNCIONES FINALES ANTES DE RENDERIZAR */
+				computeNormalsAndFaces();
+				THREEx.WindowResize(renderer, camera);
+				console.log('load complete!');
+
+				$('#introContainer').fadeOut("slow", function () {
+					render()
+					$('#mainContainer').fadeIn("slow", function () { });
+				});
+				// END ONLOAD CALLBACK
+			});
+
+			controller.connect(function () { console.log('connected!'); });
+			controls.addEventListener('change', function () {
+				if (animLoop == false) { render(); }
+			});
+			addInfoListener();
+		}
+
+		/* ANIMATE DEPRECATED ON STATIC SCENE */
+		function animate() {
+			// window.requestAnimationFrame informa al navegador que quieres
+			// realizar una animación y solicita que el navegador programe el
+			// repintado de la ventana para el próximo ciclo de animación. 
+			// El método acepta como argumento una función a la que llamar 
+			// antes de efectuar el repintado.
+			idM = requestAnimationFrame(animate);
+			controls.update();
+			//stats.update();
+			render();
+		}
+
+		function render() {
+			renderer.render(scene, camera);
+		}
+
+		function removeInfoListener() {
+			document.removeEventListener('click', clickHandler, false);
+		}
+
+		function addInfoListener() {
+			// addEventListener() Registra un evento a un objeto en específico. 
+			// El ObJeto especifico puede ser un simple elemento en un archivo,
+			// el mismo  documento , una ventana o un  XMLHttpRequest.
+			document.addEventListener('click', clickHandler, false);
+		}
+
+		function pointer() {
+			controls = new THREE.LeapPointerControls(camera, controller);
+			controls.size = 20000;
+			controls.speed = .03;
+			controls.dampening = .99;
+			controls.target = new THREE.Vector3
+		}
+		(0, 100, 0);
+		function twoHand() {
+			controls = new THREE.LeapTwoHandControls(camera, controller);
+			controls.translationSpeed = 180;
+			controls.rotationSpeed = 3;
+			controls.pinchThreshold = 0.9;
+			controls.transSmoothing = 1000;
+			controls.rotationSmoothing = 1;
+			animLoop = true;
+			animate();
+		}
+
+		function mouse() {
+			if (animLoop == true) {
+				stopAnim(idM);
+			}
+			animLoop = false;
+			controls = new THREE.OrbitControls(camera, renderer.domElement);
+			controls.enableDamping = true;
+			controls.dampingFactor = .75;
+			controls.enableZoom = true;
+		}
+
+		function stopAnim(renderTarget) {
+			cancelAnimationFrame(renderTarget);
+		}
+
+	</script>
+</body>
+
+</html>
